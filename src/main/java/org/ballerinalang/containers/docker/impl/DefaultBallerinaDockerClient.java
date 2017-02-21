@@ -17,6 +17,7 @@
 
 package org.ballerinalang.containers.docker.impl;
 
+import io.fabric8.docker.api.model.ContainerCreateResponse;
 import io.fabric8.docker.api.model.Image;
 import io.fabric8.docker.api.model.ImageDelete;
 import io.fabric8.docker.client.Config;
@@ -31,6 +32,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.ballerinalang.containers.Constants;
 import org.ballerinalang.containers.docker.BallerinaDockerClient;
 import org.ballerinalang.containers.docker.exception.BallerinaDockerClientException;
+import org.ballerinalang.containers.docker.utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,6 +66,22 @@ public class DefaultBallerinaDockerClient implements BallerinaDockerClient {
     // Cannot depend on buildErrors because Fabric8 seems to be randomly adding "Failed:" errors even
     // when the build completed successfully.
 //    private final List<String> buildErrors = new ArrayList<>();
+
+    private static boolean isMainImage(DockerClient client, String imageName) {
+        for (String envVar : client.image()
+                .withName(imageName)
+                .inspect()
+                .getConfig()
+                .getEnv()) {
+
+            String[] envVarValue = envVar.split("=");
+            if (envVarValue[0].equals("SVC_MODE") && envVarValue[1].equals("false")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /**
      * {@inheritDoc}
@@ -345,6 +363,52 @@ public class DefaultBallerinaDockerClient implements BallerinaDockerClient {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String runMainContainer(String dockerEnv, String imageName)
+            throws BallerinaDockerClientException {
+
+//        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        DockerClient client = getDockerClient(dockerEnv);
+        if (!isMainImage(client, imageName)) {
+            throw new BallerinaDockerClientException("Invalid image to run: " + imageName);
+        }
+
+        String containerName = Utils.generateContainerName();
+        ContainerCreateResponse container = client.container().createNew()
+                .withName(containerName)
+                .withImage(imageName)
+                .done();
+
+// TODO: collect logs
+//        try (
+//                OutputHandle logHandle = client.container().
+//                        withName(container.getId())
+//                        .logs()
+//                        .writingOutput(System.out)
+//                        .writingError(System.err)
+//                        .display()
+//        ) {
+
+        if (client.container().withName(container.getId()).start()) {
+////                ("Container started: " + container.getId());
+//            Thread.sleep(1000);
+//                client.container().withName(container.getId()).stop();
+//                String output = IOUtils.toString(logHandle.getOutput(), "UTF-8");
+//                String output = getStringFromInputStream(logHandle.getOutput());
+//                return output;
+//                return new String(outputStream.toByteArray(), Charset.defaultCharset());
+            client.container().withName(container.getId()).stop();
+        }
+//        }
+
+        client.container().withName(container.getId()).remove();
+        return null;
+
+    }
+
+    /**
      * An {@link EventListener} implementation to listen to Docker build events.
      */
     private class DockerBuilderEventListener implements EventListener {
@@ -365,70 +429,15 @@ public class DefaultBallerinaDockerClient implements BallerinaDockerClient {
         }
     }
 
-//    private static boolean isFunctionImage(DockerClient client, String serviceName) {
-//        for (String envVar : client.image()
-//                .withName(serviceName.toLowerCase(Locale.getDefault()) + ":latest")
-//                .inspect()
-//                .getConfig()
-//                .getEnv()) {
-//
-//            String[] envVarValue = envVar.split("=");
-//            if (envVarValue[0].equals("SVC_MODE") && envVarValue[1].equals("false")) {
-//                return true;
-//            }
-//        }
-//
-//        return false;
-//    }
-//
-//    @Override
-//    public String runMainContainer(String dockerEnv, String serviceName)
-//            throws InterruptedException, IOException, BallerinaDockerClientException {
-//        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-//        DockerClient client = getDockerClient(dockerEnv);
-//        if (!isFunctionImage(client, serviceName)) {
-//            throw new BallerinaDockerClientException("Invalid image to run: " +
-// serviceName.toLowerCase(Locale.getDefault()) +
-//                    ":latest");
-//        }
-//
-//        ContainerCreateResponse container = client.container().createNew()
-//                .withName(serviceName + "-latest")
-//                .withImage(serviceName.toLowerCase(Locale.getDefault()) + ":latest")
-//                .done();
-//
-//        // TODO: throws EOFException here.
-//        try (
-//                OutputHandle logHandle = client.container().
-//                        withName(container.getId())
-//                        .logs()
-//                        .writingOutput(outputStream)
-//                        .writingError(outputStream)
-//                        .display()
-//        ) {
-//
-//            if (client.container().withName(container.getId()).start()) {
-//////                ("Container started: " + container.getId());
-//                Thread.sleep(10000);
-////                client.container().withName(container.getId()).stop();
-////                return IOUtils.toString(logHandle.getOutput(), "UTF-8");
-//                client.container().withName(container.getId()).remove();
-//                return new String(outputStream.toByteArray(), Charset.defaultCharset());
-////                return "";
-//            }
-//        }
-//
-//        client.container().withName(container.getId()).remove();
-//        return "";
-//
-//    }
-//
+//    /**
+//     * {@inheritDoc}
+//     */
 //    @Override
 //    public String runServiceContainer(String packageName, String dockerEnv) throws BallerinaDockerClientException {
 //        DockerClient client = getDockerClient(dockerEnv);
-//        if (isFunctionImage(client, packageName)) {
+//        if (isMainImage(client, packageName)) {
 //            throw new BallerinaDockerClientException("Invalid image to run: " +
-// packageName.toLowerCase(Locale.getDefault()) +
+//                    packageName.toLowerCase(Locale.getDefault()) +
 //                    ":latest");
 //        }
 //
@@ -452,6 +461,9 @@ public class DefaultBallerinaDockerClient implements BallerinaDockerClient {
 //        return dockerUrl;
 //    }
 //
+//    /**
+//     * {@inheritDoc}
+//     */
 //    @Override
 //    public void stopContainer(String packageName, String dockerEnv) throws BallerinaDockerClientException {
 ////        DockerClient client = getDockerClient(dockerEnv);

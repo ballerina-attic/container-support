@@ -118,10 +118,17 @@ public interface BallerinaDockerClient {
      */
     String getImage(String packageName, String dockerEnv);
 
-//    public String runMainContainer(String dockerEnv, String serviceName)
-//            throws InterruptedException, IOException, BallerinaDockerClientException;
+    /**
+     * Run a Ballerina Main Docker image.
+     *
+     * @param dockerEnv The docker host URL.
+     * @param imageName The docker image name to use. This should be of format name:version.
+     * @return TODO: Null for now.
+     * @throws BallerinaDockerClientException If the input parameters are invalid.
+     */
+    String runMainContainer(String dockerEnv, String imageName) throws BallerinaDockerClientException;
+
+//    String runServiceContainer(String packageName, String dockerEnv) throws BallerinaDockerClientException;
 //
-//    public String runServiceContainer(String packageName, String dockerEnv) throws BallerinaDockerClientException;
-//
-//    public void stopContainer(String packageName, String dockerEnv) throws BallerinaDockerClientException;
+//    void stopContainer(String packageName, String dockerEnv) throws BallerinaDockerClientException;
 }
