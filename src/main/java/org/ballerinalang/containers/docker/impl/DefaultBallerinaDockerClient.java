@@ -18,6 +18,7 @@
 package org.ballerinalang.containers.docker.impl;
 
 import io.fabric8.docker.api.model.ContainerCreateResponse;
+import io.fabric8.docker.api.model.ContainerInspect;
 import io.fabric8.docker.api.model.Image;
 import io.fabric8.docker.api.model.ImageDelete;
 import io.fabric8.docker.client.Config;
@@ -31,6 +32,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.ballerinalang.containers.Constants;
 import org.ballerinalang.containers.docker.BallerinaDockerClient;
+import org.ballerinalang.containers.docker.bean.ServiceContainerConfiguration;
 import org.ballerinalang.containers.docker.exception.BallerinaDockerClientException;
 import org.ballerinalang.containers.docker.utils.Utils;
 
@@ -67,6 +69,9 @@ public class DefaultBallerinaDockerClient implements BallerinaDockerClient {
     // when the build completed successfully.
 //    private final List<String> buildErrors = new ArrayList<>();
 
+    /*
+    Checks whether the given image contains a Ballerina Main function by checking environment variables.
+     */
     private static boolean isMainImage(DockerClient client, String imageName) {
         for (String envVar : client.image()
                 .withName(imageName)
@@ -173,6 +178,100 @@ public class DefaultBallerinaDockerClient implements BallerinaDockerClient {
         }
 
         return null;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String runMainContainer(String dockerEnv, String imageName)
+            throws BallerinaDockerClientException {
+
+        DockerClient client = getDockerClient(dockerEnv);
+        if (!isMainImage(client, imageName)) {
+            throw new BallerinaDockerClientException("Invalid image to run: " + imageName);
+        }
+
+        String containerName = Utils.generateContainerName();
+        ContainerCreateResponse container = client.container().createNew()
+                .withName(containerName)
+                .withImage(imageName)
+                .done();
+
+        // TODO: collect logs
+        if (client.container().withName(container.getId()).start()) {
+            client.container().withName(container.getId()).stop();
+        }
+
+        client.container().withName(container.getId()).remove();
+        return null;
+
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public ServiceContainerConfiguration runServiceContainer(String dockerEnv, String imageName)
+            throws BallerinaDockerClientException {
+
+        if (dockerEnv != null) {
+            throw new BallerinaDockerClientException(
+                    "Starting/stopping Service Containers on remote Docker daemons is not supported at the moment.");
+        }
+
+        DockerClient client = getDockerClient(null);
+        if (isMainImage(client, imageName)) {
+            throw new BallerinaDockerClientException("Invalid image to run: " + imageName);
+        }
+
+        String containerName = Utils.generateContainerName();
+
+        client.container().createNew()
+                .withName(containerName)
+                .withImage(imageName)
+                .done();
+
+        // TODO: expose service via ephemeral port for both local and remote docker host
+        if (client.container().withName(containerName).start()) {
+            ServiceContainerConfiguration containerConfig = new ServiceContainerConfiguration();
+            containerConfig.setContainerId(containerName);
+            containerConfig.setExposedPort("9090");
+            ContainerInspect inspect = client.container().withName(containerName).inspect();
+            if (inspect.getNetworkSettings().getAdditionalProperties().containsKey("IPAddress")) {
+                containerConfig.setRunningUrl("http://" +
+                        inspect.getNetworkSettings().getAdditionalProperties().get("IPAddress") + ":9090/");
+            }
+
+            return containerConfig;
+        }
+
+        return null;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean stopContainer(String dockerEnv, String containerId) throws BallerinaDockerClientException {
+        if (dockerEnv != null) {
+            throw new BallerinaDockerClientException(
+                    "Starting/stopping Service Containers on remote Docker daemons is not supported at the moment.");
+        }
+
+        DockerClient client = getDockerClient(null);
+
+        try {
+            client.container().withName(containerId).stop();
+            client.container().withName(containerId).remove();
+            return true;
+        } catch (DockerClientException e) {
+            if (e.getCode() == 404) {
+                throw new BallerinaDockerClientException("Could not find running container with ID: " + containerId);
+            } else {
+                return false;
+            }
+        }
     }
 
     /*
@@ -363,52 +462,6 @@ public class DefaultBallerinaDockerClient implements BallerinaDockerClient {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String runMainContainer(String dockerEnv, String imageName)
-            throws BallerinaDockerClientException {
-
-//        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        DockerClient client = getDockerClient(dockerEnv);
-        if (!isMainImage(client, imageName)) {
-            throw new BallerinaDockerClientException("Invalid image to run: " + imageName);
-        }
-
-        String containerName = Utils.generateContainerName();
-        ContainerCreateResponse container = client.container().createNew()
-                .withName(containerName)
-                .withImage(imageName)
-                .done();
-
-// TODO: collect logs
-//        try (
-//                OutputHandle logHandle = client.container().
-//                        withName(container.getId())
-//                        .logs()
-//                        .writingOutput(System.out)
-//                        .writingError(System.err)
-//                        .display()
-//        ) {
-
-        if (client.container().withName(container.getId()).start()) {
-////                ("Container started: " + container.getId());
-//            Thread.sleep(1000);
-//                client.container().withName(container.getId()).stop();
-//                String output = IOUtils.toString(logHandle.getOutput(), "UTF-8");
-//                String output = getStringFromInputStream(logHandle.getOutput());
-//                return output;
-//                return new String(outputStream.toByteArray(), Charset.defaultCharset());
-            client.container().withName(container.getId()).stop();
-        }
-//        }
-
-        client.container().withName(container.getId()).remove();
-        return null;
-
-    }
-
-    /**
      * An {@link EventListener} implementation to listen to Docker build events.
      */
     private class DockerBuilderEventListener implements EventListener {
@@ -428,45 +481,4 @@ public class DefaultBallerinaDockerClient implements BallerinaDockerClient {
             //..
         }
     }
-
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public String runServiceContainer(String packageName, String dockerEnv) throws BallerinaDockerClientException {
-//        DockerClient client = getDockerClient(dockerEnv);
-//        if (isMainImage(client, packageName)) {
-//            throw new BallerinaDockerClientException("Invalid image to run: " +
-//                    packageName.toLowerCase(Locale.getDefault()) +
-//                    ":latest");
-//        }
-//
-//        ContainerCreateResponse container = client.container().createNew()
-//                .withName(packageName + "-latest")
-//                .withImage(packageName.toLowerCase(Locale.getDefault()) + ":latest")
-//                .done();
-//
-//        client.container().withName(container.getId()).start();
-////        if (client.container().withName(container.getId()).start()) {
-//////            ("Container started: " + container.getId());
-////        }
-//
-//        String dockerUrl;
-//        if (dockerEnv == null) {
-//            dockerUrl = "http://localhost:" + "9090" + File.separator;
-//        } else {
-//            dockerUrl = dockerEnv.substring(0, dockerEnv.lastIndexOf(":")) + "9090" + File.separator;
-//        }
-//
-//        return dockerUrl;
-//    }
-//
-//    /**
-//     * {@inheritDoc}
-//     */
-//    @Override
-//    public void stopContainer(String packageName, String dockerEnv) throws BallerinaDockerClientException {
-////        DockerClient client = getDockerClient(dockerEnv);
-//        throw new BallerinaDockerClientException("Not implemented!");
-//    }
 }

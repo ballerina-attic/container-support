@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
   ~ Copyright (c) 2017, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
   ~
@@ -16,9 +17,10 @@
   ~ under the License.
   -->
 <FindBugsFilter>
-    <!--<Match>-->
-    <!--<Package name="org.wso2.ballerina.core.model.values"/>-->
-    <!--</Match>-->
+    <Match>
+        <Class name="org.ballerinalang.containers.docker.impl.DefaultBallerinaDockerClient"/>
+        <Bug code="NP_LOAD_OF_KNOWN_NULL_VALUE"/>
+    </Match>
     <!--<Match>-->
     <!--<Package name="org.wso2.ballerina.interpreter"/>-->
     <!--</Match>-->

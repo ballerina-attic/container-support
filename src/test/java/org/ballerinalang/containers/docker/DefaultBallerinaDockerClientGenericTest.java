@@ -17,6 +17,7 @@
 package org.ballerinalang.containers.docker;
 
 import org.ballerinalang.containers.Constants;
+import org.ballerinalang.containers.docker.bean.ServiceContainerConfiguration;
 import org.ballerinalang.containers.docker.exception.BallerinaDockerClientException;
 import org.ballerinalang.containers.docker.impl.DefaultBallerinaDockerClient;
 import org.ballerinalang.containers.docker.utils.TestUtils;
@@ -155,6 +156,47 @@ public class DefaultBallerinaDockerClientGenericTest {
         // TODO: until log collection is figured out
 //        Assert.assertTrue("Hello, World!".equals(output), "Running Ballerina function in Docker failed.");
         Assert.assertEquals(null, output, "Running Ballerina function in Docker failed.");
+    }
+
+    @Test
+    public void testSuccessfulServiceRunAndStop()
+            throws Exception {
+
+        String serviceName = "TestService1";
+        String imageName = serviceName.toLowerCase();
+        List<Path> packagePaths = TestUtils.getTestServiceAsPathList();
+
+        String result = dockerClient.createServiceImage(serviceName, null, packagePaths, null, null);
+        Assert.assertTrue(
+                (result != null) && (result.equals(imageName + ":" + Constants.IMAGE_VERSION_LATEST)),
+                "Docker image creation failed.");
+        createdImages.add(imageName + ":" + Constants.IMAGE_VERSION_LATEST);
+
+        ServiceContainerConfiguration serviceContainerRunResult = dockerClient.runServiceContainer(null, result);
+        Assert.assertTrue(serviceContainerRunResult != null, "Running Ballerina service in Docker failed.");
+
+        boolean containerStopped = dockerClient.stopContainer(null, serviceContainerRunResult.getContainerId());
+        Assert.assertTrue(containerStopped, "Stopping container failed.");
+    }
+
+    @Test(expectedExceptions = {BallerinaDockerClientException.class})
+    public void testFailedServiceRun() throws InterruptedException, IOException, BallerinaDockerClientException {
+        String serviceName = "TestFunction4";
+        String imageName = serviceName.toLowerCase();
+        String ballerinaConfig = TestUtils.getTestFunctionAsString();
+
+        String result = dockerClient.createMainImage(serviceName, null, ballerinaConfig, null, null);
+        Assert.assertTrue(
+                (result != null) && (result.equals(imageName + ":" + Constants.IMAGE_VERSION_LATEST)),
+                "Docker image creation failed.");
+        createdImages.add(imageName + ":" + Constants.IMAGE_VERSION_LATEST);
+
+        dockerClient.runServiceContainer(null, imageName);
+    }
+
+    @Test(expectedExceptions = {BallerinaDockerClientException.class})
+    public void testFailedContainerStop() throws Exception {
+        dockerClient.stopContainer(null, "nonexistingcontainerid");
     }
 
     @AfterMethod
