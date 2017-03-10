@@ -17,7 +17,7 @@ mvn clean install
 This will create a fat JAR file with the dependencies included, inside the `target` folder.
 
 ## Usage
-Add the `ballerina-container-support-0.8.1.jar` file to `bre/lib/` folder in the Ballerina distribution.
+Add the `ballerina-container-support-0.8.2.jar` file to `bre/lib/` folder in the Ballerina distribution.
 
 ### `ballerina docker` Command Line Usage
 ```
@@ -102,7 +102,7 @@ cp mypackage.bmz ~/ballerina/packages/
 chmod +r ~/ballerina/packages/mypackage.bmz
 
 # Run container with the volume mount
-docker run -v ~/ballerina/packages:/ballerina/files -it ballerinalang/ballerina:0.8.1
+docker run -v ~/ballerina/packages:/ballerina/files -it ballerinalang/ballerina:0.8.3
 ```
 
 If you are running a Ballerina Service, set the `SVC_MODE` environment variable to `true`. 
@@ -111,7 +111,7 @@ If you are running a Ballerina Service, set the `SVC_MODE` environment variable 
 cp mysvcpackage.bsz ~/ballerina/packages/
 chmod +r ~/ballerina/packages/mysvcpackage.bsz
 
-docker run -v /tmp/testb:/ballerina/files -e "SVC_MODE=true" -p 9090:9090 -it ballerinalang/ballerina:0.8.1
+docker run -v /tmp/testb:/ballerina/files -e "SVC_MODE=true" -p 9090:9090 -it ballerinalang/ballerina:0.8.3
 ```
 ## License
 Ballerina Container Support is licensed under [Apache License v2](LICENSE).
