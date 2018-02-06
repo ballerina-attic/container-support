@@ -1,4 +1,9 @@
 # Ballerina Container Support
+
+This repository is no longer used for development. Current developments are done in following repository.
+
+https://github.com/ballerina-lang/ballerina
+
 Container support for Ballerina provides the implementation for packaging Ballerina programs with Docker using `ballerina docker` command.
 
 This is available as part of the Ballerina Tools distribution.
